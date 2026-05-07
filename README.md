@@ -1,5 +1,11 @@
 # Photo Uploader Raspberry + Linux Server
 
+![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25)
+![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Photo%20Uploader-C51A4A)
+![Linux Server](https://img.shields.io/badge/Linux%20Server-SSH%2Frsync-0078D6)
+![License](https://img.shields.io/badge/License-MIT-blue)
+
+
 Reference project for importing photos from cameras connected to Raspberry Pi devices and centralizing them on an existing Linux server.
 
 The architecture is intentionally simple and operational:
@@ -30,6 +36,14 @@ The Raspberry does not actively push files to the server.
 ```
 
 This keeps the Raspberry lightweight and lets the server centralize storage, logs, Samba, and backup.
+
+## Use cases
+
+- Photo booths
+- Event photo workflows
+- Local retail/PDV photo operations
+- Camera-to-server automation
+- Raspberry Pi field collectors
 
 ## What this project includes
 
