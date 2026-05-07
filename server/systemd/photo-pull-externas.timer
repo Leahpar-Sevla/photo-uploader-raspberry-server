@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Photo Server Pull EXTERNAS every 45 seconds
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=45s
+Unit=photo-pull-externas.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+# Format:
+# CAM_ID|SSH_USER|HOST|REMOTE_BASE|SSH_KEY
+#
+# Example using Tailscale IP placeholder:
+# CAM-01|photo-sync|100.xxx.xxx.xxx|/var/photo-spool/CAM-01|/home/photo-sync/.ssh/rasp_cam01
+
+CAM-01|photo-sync|100.xxx.xxx.xxx|/var/photo-spool/CAM-01|/home/photo-sync/.ssh/rasp_cam01

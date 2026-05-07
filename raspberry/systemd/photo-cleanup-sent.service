@@ -1,0 +1,9 @@
+[Unit]
+Description=Photo Uploader - Cleanup sent sessions on Raspberry
+After=multi-user.target
+
+[Service]
+Type=oneshot
+User=photo-sync
+Group=photo-sync
+ExecStart=/opt/photo-uploader/bin/cleanup_sent.sh

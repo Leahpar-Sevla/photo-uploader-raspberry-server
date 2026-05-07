@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Photo Uploader sent cleanup periodically
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=photo-cleanup-sent.service
+
+[Install]
+WantedBy=timers.target
