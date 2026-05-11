@@ -37,7 +37,6 @@ load_config() {
     exit 1
   fi
 
-  # shellcheck source=/dev/null
   source "$CONFIG_FILE"
 
   CAM_ID="${CAM_ID:-CAM-01}"
@@ -62,9 +61,6 @@ detect_camera() {
 
   if ! gphoto2 --auto-detect | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
     warn "Nenhuma câmera detectada pelo gphoto2."
-    if [ -n "${SESSION_DIR_TMP:-}" ] && [ -d "$SESSION_DIR_TMP" ]; then
-      rmdir "$SESSION_DIR_TMP" 2>/dev/null || true
-    fi
     exit 0
   fi
 
@@ -267,7 +263,9 @@ seed_current_camera() {
 }
 
 main_import() {
-  create_session
+  TS_SCAN="$(date '+%Y-%m-%d_%H%M%S')"
+  SCAN_LOG_FILE="${LOG_DIR}/import_incremental_scan_${CAM_ID}_${TS_SCAN}.log"
+  LOG_FILE="$SCAN_LOG_FILE"
 
   exec > >(tee -a "$LOG_FILE") 2>&1
 
@@ -279,11 +277,10 @@ main_import() {
   fi
 
   log "============================================================"
-  log "Photo Uploader - Importação incremental da câmera"
+  log "Photo Uploader - Verificação incremental da câmera"
   log "CAM_ID: $CAM_ID"
-  log "Sessão: $SESSION"
   log "Base local: $BASE_CAM"
-  log "Log: $LOG_FILE"
+  log "Log de verificação: $SCAN_LOG_FILE"
   log "Histórico: $HISTORY_FILE"
   log "============================================================"
 
@@ -292,12 +289,27 @@ main_import() {
   build_new_list
 
   if [ "$NEW_COUNT" -lt 1 ]; then
-    warn "Nenhum arquivo novo encontrado. Removendo sessão vazia."
-    rmdir "$SESSION_DIR_TMP" 2>/dev/null || true
-    log "Nada para importar."
+    log "Nenhum arquivo novo encontrado."
+    log "Nenhuma sessão será criada."
     log "============================================================"
     exit 0
   fi
+
+  create_session
+
+  SESSION_LOG_FILE="$LOG_FILE"
+  exec > >(tee -a "$SESSION_LOG_FILE") 2>&1
+
+  log "============================================================"
+  log "Photo Uploader - Importação incremental da câmera"
+  log "CAM_ID: $CAM_ID"
+  log "Sessão: $SESSION"
+  log "Base local: $BASE_CAM"
+  log "Log da sessão: $SESSION_LOG_FILE"
+  log "Log de verificação: $SCAN_LOG_FILE"
+  log "Histórico: $HISTORY_FILE"
+  log "Arquivos novos para importar: $NEW_COUNT"
+  log "============================================================"
 
   download_new_files
   create_manifest

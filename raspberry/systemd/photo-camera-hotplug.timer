@@ -1,0 +1,10 @@
+[Unit]
+Description=Verifica câmera conectada e dispara importação automática
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=15s
+Unit=photo-camera-hotplug.service
+
+[Install]
+WantedBy=timers.target

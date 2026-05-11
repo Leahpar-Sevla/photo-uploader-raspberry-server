@@ -1,0 +1,12 @@
+[Unit]
+Description=Photo Uploader - Importação automática ao conectar câmera
+After=multi-user.target
+
+[Service]
+Type=oneshot
+User=dev
+Group=dev
+SupplementaryGroups=plugdev
+Environment=HOME=/home/dev
+WorkingDirectory=/home/dev
+ExecStart=/opt/photo-uploader/bin/on_camera_connected.sh
