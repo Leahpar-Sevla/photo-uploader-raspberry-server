@@ -5,12 +5,26 @@ CONFIG_FILE="/etc/photo-uploader/config.env"
 
 now() { date '+%Y-%m-%d %H:%M:%S'; }
 log() { echo "[$(now)] [INFO] $*"; }
-warn() { echo "[$(now)] [WARN] $*"; }
-error() { echo "[$(now)] [ERROR] $*"; }
+warn() { echo "[$(now)] [AVISO] $*"; }
+error() { echo "[$(now)] [ERRO] $*"; }
+
+fail_session() {
+  local reason="$1"
+  error "$reason"
+
+  if [ -n "${SESSION_DIR_TMP:-}" ] && [ -d "$SESSION_DIR_TMP" ]; then
+    mkdir -p "$ERROR_DIR"
+    local error_target="${ERROR_DIR}/${SESSION}_FALHA_$(date '+%H%M%S')"
+    warn "Movendo sessão com falha para: $error_target"
+    mv "$SESSION_DIR_TMP" "$error_target" || true
+  fi
+
+  exit 1
+}
 
 load_config() {
   if [ ! -f "$CONFIG_FILE" ]; then
-    error "Config not found: $CONFIG_FILE"
+    echo "[ERRO] Arquivo de configuração não encontrado: $CONFIG_FILE"
     exit 1
   fi
 
@@ -21,77 +35,82 @@ load_config() {
   LOCAL_BASE="${LOCAL_BASE:-/var/photo-spool}"
 
   BASE_CAM="${LOCAL_BASE}/${CAM_ID}"
+
   IMPORTING_DIR="${BASE_CAM}/importando"
   PENDING_DIR="${BASE_CAM}/pendentes"
+  SENT_DIR="${BASE_CAM}/enviados"
   ERROR_DIR="${BASE_CAM}/erro"
   LOG_DIR="${BASE_CAM}/logs"
   CONTROL_DIR="${BASE_CAM}/controle"
+
+  mkdir -p "$IMPORTING_DIR" "$PENDING_DIR" "$SENT_DIR" "$ERROR_DIR" "$LOG_DIR" "$CONTROL_DIR"
+
   LOCK_FILE="${CONTROL_DIR}/import.lock"
-
-  mkdir -p "$IMPORTING_DIR" "$PENDING_DIR" "$ERROR_DIR" "$LOG_DIR" "$CONTROL_DIR"
-}
-
-check_commands() {
-  command -v gphoto2 >/dev/null 2>&1 || {
-    error "gphoto2 not found. Install with: sudo apt install -y gphoto2"
-    exit 1
-  }
-
-  command -v flock >/dev/null 2>&1 || {
-    error "flock not found."
-    exit 1
-  }
-}
-
-detect_camera() {
-  log "Checking camera..."
-
-  if ! gphoto2 --auto-detect | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
-    warn "No camera detected by gphoto2."
-    exit 0
-  fi
-
-  log "Camera detected."
 }
 
 create_session() {
   TS="$(date '+%Y-%m-%d_%H%M%S')"
   SESSION="${CAM_ID}_${TS}"
+
   SESSION_DIR_TMP="${IMPORTING_DIR}/${SESSION}"
   SESSION_DIR_FINAL="${PENDING_DIR}/${SESSION}"
   LOG_FILE="${LOG_DIR}/import_${SESSION}.log"
+
   mkdir -p "$SESSION_DIR_TMP"
 }
 
-fail_session() {
-  local reason="$1"
-  error "$reason"
+check_commands() {
+  command -v gphoto2 >/dev/null 2>&1 || {
+    echo "[ERRO] gphoto2 não encontrado."
+    exit 1
+  }
 
-  if [ -n "${SESSION_DIR_TMP:-}" ] && [ -d "$SESSION_DIR_TMP" ]; then
-    mkdir -p "$ERROR_DIR"
-    mv "$SESSION_DIR_TMP" "${ERROR_DIR}/${SESSION}_FAILED_$(date '+%H%M%S')" || true
+  command -v flock >/dev/null 2>&1 || {
+    echo "[ERRO] flock não encontrado."
+    exit 1
+  }
+}
+
+detect_camera() {
+  log "Verificando câmera conectada..."
+
+  if ! gphoto2 --auto-detect | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
+    warn "Nenhuma câmera detectada pelo gphoto2."
+    warn "Conecte a câmera, ligue-a e tente novamente."
+    if [ -n "${SESSION_DIR_TMP:-}" ] && [ -d "$SESSION_DIR_TMP" ]; then
+      rmdir "$SESSION_DIR_TMP" 2>/dev/null || true
+    fi
+    exit 0
   fi
 
-  exit 1
+  log "Câmera detectada."
 }
 
 import_files() {
-  log "Importing files to: $SESSION_DIR_TMP"
+  log "Iniciando cópia dos arquivos para: $SESSION_DIR_TMP"
+
   pushd "$SESSION_DIR_TMP" >/dev/null
-  gphoto2 --get-all-files --filename "%03n_%f.%C"
+
+  if ! gphoto2 --get-all-files --filename "%03n_%f.%C"; then
+    popd >/dev/null || true
+    fail_session "Falha durante cópia da câmera via gphoto2."
+  fi
+
   popd >/dev/null
 
   FILE_COUNT="$(find "$SESSION_DIR_TMP" -type f | wc -l | tr -d ' ')"
 
-  if [ "$FILE_COUNT" -lt 1 ]; then
-    fail_session "No files imported from camera."
-  fi
+  log "Arquivos importados inicialmente: $FILE_COUNT"
 
-  log "Imported files: $FILE_COUNT"
+  if [ "$FILE_COUNT" -lt 1 ]; then
+    fail_session "Nenhum arquivo foi copiado da câmera."
+  fi
 }
 
 create_manifest() {
   local manifest="${SESSION_DIR_TMP}/manifest.txt"
+
+  log "Criando manifest.txt"
 
   {
     echo "SESSION=${SESSION}"
@@ -99,6 +118,7 @@ create_manifest() {
     echo "IMPORT_DATE=$(now)"
     echo "HOSTNAME=$(hostname)"
     echo "SOURCE=gphoto2"
+    echo "MODE=full"
     echo
     echo "FILES:"
     find "$SESSION_DIR_TMP" \
@@ -115,34 +135,52 @@ create_manifest() {
   } > "$manifest"
 }
 
+mark_ready() {
+  log "Criando marcador .READY"
+  touch "${SESSION_DIR_TMP}/.READY"
+}
+
+move_to_pending() {
+  if [ -e "$SESSION_DIR_FINAL" ]; then
+    fail_session "Já existe uma sessão com o mesmo nome em pendentes/: $SESSION_DIR_FINAL"
+  fi
+
+  log "Movendo sessão para pendentes/: $SESSION_DIR_FINAL"
+  mv "$SESSION_DIR_TMP" "$SESSION_DIR_FINAL"
+}
+
 main() {
   check_commands
   load_config
-  detect_camera
   create_session
 
   exec > >(tee -a "$LOG_FILE") 2>&1
+
   exec 9>"$LOCK_FILE"
 
   if ! flock -n 9; then
-    warn "Another import is already running. Exiting."
+    warn "Outra importação já está em andamento. Saindo."
     exit 0
   fi
 
-  log "Starting import session: $SESSION"
+  log "============================================================"
+  log "Photo Uploader - Importação da câmera"
+  log "CAM_ID: $CAM_ID"
+  log "Sessão: $SESSION"
+  log "Base local: $BASE_CAM"
+  log "Log: $LOG_FILE"
+  log "============================================================"
 
+  detect_camera
   import_files
   create_manifest
-  touch "${SESSION_DIR_TMP}/.READY"
+  mark_ready
+  move_to_pending
 
-  if [ -e "$SESSION_DIR_FINAL" ]; then
-    fail_session "Final session already exists: $SESSION_DIR_FINAL"
-  fi
-
-  mv "$SESSION_DIR_TMP" "$SESSION_DIR_FINAL"
-
-  log "Import completed."
-  log "Ready session: $SESSION_DIR_FINAL"
+  log "Importação finalizada com sucesso."
+  log "Sessão pronta para o servidor buscar:"
+  log "$SESSION_DIR_FINAL"
+  log "============================================================"
 }
 
 main "$@"

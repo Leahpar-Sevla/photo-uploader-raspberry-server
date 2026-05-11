@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Photo Uploader sent cleanup periodically
+Description=Executa limpeza de sessões enviadas do Photo Uploader
 
 [Timer]
 OnBootSec=5min

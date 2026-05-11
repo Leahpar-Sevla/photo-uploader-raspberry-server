@@ -1,7 +1,6 @@
-# Format:
+# Formato:
 # CAM_ID|SSH_USER|HOST|REMOTE_BASE|SSH_KEY
-#
-# Example using Tailscale IP placeholder:
-# CAM-01|photo-sync|100.xxx.xxx.xxx|/var/photo-spool/CAM-01|/home/photo-sync/.ssh/rasp_cam01
 
-CAM-01|photo-sync|100.xxx.xxx.xxx|/var/photo-spool/CAM-01|/home/photo-sync/.ssh/rasp_cam01
+# Exemplo de laboratório/produção.
+# Substitua HOST pelo IP Tailscale ou MagicDNS do Raspberry.
+CAM-01|dev|100.x.y.z|/var/photo-spool/CAM-01|/home/dev/.ssh/rasp_cam01

@@ -1,9 +1,9 @@
 [Unit]
-Description=Photo Uploader - Cleanup sent sessions on Raspberry
+Description=Photo Uploader - Limpeza de sessões enviadas do Raspberry
 After=multi-user.target
 
 [Service]
 Type=oneshot
-User=photo-sync
-Group=photo-sync
+User=dev
+Group=dev
 ExecStart=/opt/photo-uploader/bin/cleanup_sent.sh

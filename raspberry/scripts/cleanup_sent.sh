@@ -2,18 +2,19 @@
 set -Eeuo pipefail
 
 CONFIG_FILE="/etc/photo-uploader/config.env"
+
 THRESHOLD_SESSIONS=10
 KEEP_LATEST=1
 DRY_RUN="${DRY_RUN:-0}"
 
 now() { date '+%Y-%m-%d %H:%M:%S'; }
 log() { echo "[$(now)] [INFO] $*"; }
-warn() { echo "[$(now)] [WARN] $*"; }
-error() { echo "[$(now)] [ERROR] $*"; }
+warn() { echo "[$(now)] [AVISO] $*"; }
+error() { echo "[$(now)] [ERRO] $*"; }
 
 load_config() {
   if [ ! -f "$CONFIG_FILE" ]; then
-    error "Config not found: $CONFIG_FILE"
+    error "Arquivo de configuração não encontrado: $CONFIG_FILE"
     exit 1
   fi
 
@@ -38,42 +39,43 @@ load_config() {
 
 validate_safe_paths() {
   if [ -z "${CAM_ID:-}" ]; then
-    error "CAM_ID is empty. Aborting."
+    error "CAM_ID vazio. Abortando."
     exit 1
   fi
 
-  case "$SENT_DIR" in
-    "/"|"/var"|"/var/photo-spool")
-      error "Unsafe path detected: $SENT_DIR"
-      exit 1
-      ;;
-  esac
-
-  [ -d "$SENT_DIR" ] || {
-    error "Sent folder does not exist: $SENT_DIR"
+  if [ "$SENT_DIR" = "/" ] || [ "$SENT_DIR" = "/var" ] || [ "$SENT_DIR" = "/var/photo-spool" ]; then
+    error "Caminho inseguro detectado: $SENT_DIR"
     exit 1
-  }
+  fi
+
+  if [ ! -d "$SENT_DIR" ]; then
+    error "Pasta enviados não existe: $SENT_DIR"
+    exit 1
+  fi
 }
 
 main() {
   load_config
 
   exec > >(tee -a "$LOG_FILE") 2>&1
+
   exec 9>"$LOCK_FILE"
 
   if ! flock -n 9; then
-    warn "Another cleanup is already running. Exiting."
+    warn "Outra limpeza já está em andamento. Saindo."
     exit 0
   fi
 
   validate_safe_paths
 
-  log "Cleanup started"
+  log "============================================================"
+  log "Photo Uploader - Cleanup Sent iniciado"
   log "CAM_ID: $CAM_ID"
-  log "Sent folder: $SENT_DIR"
-  log "Threshold: $THRESHOLD_SESSIONS"
-  log "Keep latest: $KEEP_LATEST"
-  log "DRY_RUN: $DRY_RUN"
+  log "Pasta enviados: $SENT_DIR"
+  log "Limite para limpeza: ${THRESHOLD_SESSIONS} sessões"
+  log "Manter últimas: ${KEEP_LATEST}"
+  log "DRY_RUN: ${DRY_RUN}"
+  log "============================================================"
 
   mapfile -t sessions < <(
     find "$SENT_DIR" \
@@ -86,32 +88,48 @@ main() {
 
   SESSION_COUNT="${#sessions[@]}"
 
-  log "Sessions found: $SESSION_COUNT"
+  log "Sessões encontradas em enviados/: $SESSION_COUNT"
 
   if [ "$SESSION_COUNT" -lt "$THRESHOLD_SESSIONS" ]; then
-    log "Below threshold. Nothing will be deleted."
+    log "Abaixo do limite. Nada será apagado."
+    log "============================================================"
     exit 0
   fi
 
   DELETE_COUNT=$((SESSION_COUNT - KEEP_LATEST))
-  log "Threshold reached. Old sessions to remove: $DELETE_COUNT"
+
+  log "Limite atingido. Serão removidas ${DELETE_COUNT} sessão(ões) antiga(s)."
 
   for ((i=0; i<DELETE_COUNT; i++)); do
     session="${sessions[$i]}"
     session_path="${SENT_DIR}/${session}"
 
+    if [ ! -d "$session_path" ]; then
+      warn "Sessão não encontrada no momento da limpeza: $session_path"
+      continue
+    fi
+
     if [ "$DRY_RUN" = "1" ]; then
-      warn "[DRY_RUN] Would delete: $session_path"
+      warn "[DRY_RUN] Apagaria: $session_path"
     else
-      log "Deleting old session: $session_path"
+      log "Apagando sessão antiga: $session_path"
       rm -rf -- "$session_path"
     fi
   done
 
   touch "${SENT_DIR}/.keep"
 
-  log "Cleanup completed."
-  find "$SENT_DIR" -mindepth 1 -maxdepth 1 -type d -printf ' - %f\n' | sort
+  log "Limpeza finalizada."
+  log "Sessões mantidas após regra:"
+
+  find "$SENT_DIR" \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -type d \
+    -printf ' - %f\n' \
+    | sort
+
+  log "============================================================"
 }
 
 main "$@"
