@@ -287,6 +287,24 @@ backups
 
 Use `.example` files and placeholders.
 
-## Project status
+## Project maturity status
 
-This is a portfolio/reference model. Test and adapt before production use.
+The project is currently in a **controlled field validation phase**.
+
+The technical base has been validated in the lab. The next step is to validate real-world operation with collaborators before expanding to multiple Raspberry Pi devices.
+
+Current summary:
+
+- Lab architecture validated.
+- Raspberry import workflow validated.
+- Server pull workflow validated.
+- Automatic `systemd timer` pull validated.
+- Safe cleanup of Raspberry `enviados/` validated.
+- Field validation with collaborator is in progress.
+- 15-day and 30-day usage reports are required before expansion.
+
+See the full maturity plan in:
+
+```text
+docs/homologacao/status-maturidade.md
+```
