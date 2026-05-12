@@ -3,7 +3,7 @@ Description=Executa limpeza de sessões enviadas do Photo Uploader
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=15min
+OnUnitActiveSec=30min
 Unit=photo-cleanup-sent.service
 
 [Install]
